@@ -1,71 +1,65 @@
+import io
 import time
-import httpx
 from typing import Dict, Any, Optional
-from app.core.config import settings
 from app.core.logging import logger
+
 
 class SpeechToTextService:
     """
-    Speech-to-Text abstraction supporting Whisper API, local whisper, or browser STT.
+    Speech-to-Text service using free, no-API-key solutions:
+    1. Browser WebSpeech live transcript (sent as form field) — most reliable
+    2. Google Free STT via SpeechRecognition library (no API key needed)
+    3. Empty string fallback (honest — never fakes a transcript)
     """
-    def __init__(self):
-        self.api_key = settings.OPENAI_API_KEY
 
     async def transcribe_audio(
-        self, 
-        audio_bytes: bytes, 
-        filename: str = "audio.wav",
-        fallback_transcript: Optional[str] = None
+        self,
+        audio_bytes: bytes,
+        filename: str = "audio.webm",
+        fallback_transcript: Optional[str] = None,
     ) -> Dict[str, Any]:
         start_time = time.time()
-        active_key = self.api_key or settings.OPENAI_API_KEY
 
-        # 1. If candidate's browser provided live WebSpeech transcript, prioritize it or use as reliable primary
+        # ── Priority 1: Browser WebSpeech live transcript ─────────────────────
+        # This is captured in real-time by the browser's SpeechRecognition API
+        # and sent alongside the audio blob — most accurate for English/Hindi.
         if fallback_transcript and len(fallback_transcript.strip()) > 3:
-            latency = round(time.time() - start_time, 2)
             return {
                 "transcript": fallback_transcript.strip(),
-                "latency_seconds": latency,
-                "provider": "Browser WebSpeech API (Live Voice Recognition)"
+                "latency_seconds": round(time.time() - start_time, 2),
+                "provider": "Browser WebSpeech API (Live Recognition)",
             }
 
-        # 2. Try Whisper API if configured
-        if active_key:
-            try:
-                async with httpx.AsyncClient(timeout=12.0) as client:
-                    headers = {"Authorization": f"Bearer {active_key}"}
-                    files = {"file": (filename, audio_bytes, "audio/webm")}
-                    data = {"model": "whisper-1"}
-                    res = await client.post(
-                        "https://api.openai.com/v1/audio/transcriptions",
-                        headers=headers,
-                        files=files,
-                        data=data
-                    )
-                    if res.status_code == 200:
-                        transcript = res.json().get("text", "")
-                        latency = time.time() - start_time
-                        return {"transcript": transcript, "latency_seconds": round(latency, 2), "provider": "OpenAI Whisper"}
-                    else:
-                        logger.warning(f"Whisper API transcription returned HTTP {res.status_code}: {res.text[:150]}")
-            except Exception as e:
-                logger.warning(f"Whisper API transcription failed: {e}. Falling back to browser/user STT.")
+        # ── Priority 2: Google Free STT via speech_recognition library ────────
+        # Uses Google's free Speech Recognition endpoint (no API key needed).
+        # Note: browser sends WebM audio; the library handles it via AudioFile.
+        try:
+            import speech_recognition as sr  # noqa: PLC0415
 
-        # 3. If fallback_transcript was provided, use it
-        if fallback_transcript and fallback_transcript.strip():
-            latency = round(time.time() - start_time, 2)
-            return {
-                "transcript": fallback_transcript.strip(),
-                "latency_seconds": latency,
-                "provider": "Browser Speech Recognition"
-            }
+            recognizer = sr.Recognizer()
+            audio_io = io.BytesIO(audio_bytes)
+            with sr.AudioFile(audio_io) as source:
+                audio_data = recognizer.record(source)
+            transcript = recognizer.recognize_google(audio_data)
+            if transcript:
+                return {
+                    "transcript": transcript,
+                    "latency_seconds": round(time.time() - start_time, 2),
+                    "provider": "Google Speech Recognition (Free)",
+                }
+        except ImportError:
+            logger.debug("speech_recognition not installed; skipping Google STT.")
+        except Exception as e:
+            logger.warning(f"Google STT failed ({type(e).__name__}): {e}")
 
-        # 4. Fallback if no voice could be detected
-        latency = round(time.time() - start_time, 2)
+        # ── Priority 3: Honest empty fallback ─────────────────────────────────
+        # If neither source produced a transcript we return "" so the caller
+        # can substitute "I could not provide an answer." downstream.
         return {
-            "transcript": "I understand the requirements and will design the solution focusing on scalable architecture, clear abstractions, and reliability.",
-            "latency_seconds": latency,
-            "provider": "Voice Speech Engine"
+            "transcript": "",
+            "latency_seconds": round(time.time() - start_time, 2),
+            "provider": "No STT available",
         }
+
 
 stt_service = SpeechToTextService()
