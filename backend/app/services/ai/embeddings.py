@@ -40,26 +40,52 @@ class EmbeddingService:
         """
         High-dimensional subword and token semantic hash vectorizer.
         Generates deterministic 384-dimensional normalized dense vectors
-        preserving lexical and n-gram semantic similarities.
+        preserving lexical, domain-keyword, and n-gram semantic similarities.
         """
+        stopwords = {
+            'and', 'the', 'is', 'in', 'at', 'of', 'a', 'an', 'to', 'for', 'with', 'on',
+            'by', 'from', 'about', 'as', 'into', 'like', 'through', 'after', 'over', 'between'
+        }
         cleaned = re.sub(r'[^a-zA-Z0-9\s+#.]', ' ', text.lower())
-        tokens = cleaned.split()
+        tokens = [w for w in cleaned.split() if w not in stopwords and len(w) > 1]
         vec = np.zeros(self.dimension, dtype=np.float32)
 
         if not tokens:
             return vec.tolist()
 
+        # Reserve first 32 dimensions for domain ontology affinity
+        domain_clusters = {
+            "backend": ["python", "fastapi", "django", "flask", "rest", "api", "backend", "sql", "postgres", "redis", "database", "microservice", "server", "async", "asynchronous", "framework", "node"],
+            "frontend": ["react", "next", "vue", "angular", "javascript", "typescript", "frontend", "ui", "css", "html", "tailwind", "redux", "web"],
+            "devops": ["docker", "kubernetes", "k8s", "aws", "cloud", "ci", "cd", "terraform", "linux", "devops", "prometheus", "grafana", "pipeline", "helm"],
+            "data_ai": ["machine", "learning", "deep", "pytorch", "tensorflow", "pandas", "numpy", "data", "nlp", "vision", "ai", "transformer", "scikit", "model", "analytics"],
+            "systems": ["distributed", "concurrency", "lock", "thread", "cluster", "sharding", "replica", "performance", "latency", "scale", "system", "architecture"]
+        }
+
+        dim_offset = 0
+        for domain, kws in domain_clusters.items():
+            matches = sum(1 for t in tokens if any(kw in t for kw in kws))
+            if matches > 0:
+                # Distribute domain affinity across 6 dedicated bucket slots
+                for slot in range(6):
+                    vec[(dim_offset + slot) % self.dimension] += float(matches * 2.0)
+            dim_offset += 6
+
         for token in tokens:
-            # Word level hashing (deterministic across processes)
-            h1 = zlib.crc32(token.encode('utf-8')) % self.dimension
-            vec[h1] += 1.5
+            # Word level hashing (deterministic across processes) with higher weight for root tokens
+            h1 = (zlib.crc32(token.encode('utf-8')) % (self.dimension - 36)) + 36
+            vec[h1] += 2.5
+
+            # Secondary token hash with prime multiplier to distribute energy across dimensions
+            h2 = ((zlib.crc32(token.encode('utf-8')) * 31) % (self.dimension - 36)) + 36
+            vec[h2] += 1.2
 
             # 3-gram character subwords for morphological root similarity
             if len(token) >= 3:
                 for i in range(len(token) - 2):
                     sub = token[i:i+3]
-                    h_sub = zlib.crc32(sub.encode('utf-8')) % self.dimension
-                    vec[h_sub] += 0.8
+                    h_sub = (zlib.crc32(sub.encode('utf-8')) % (self.dimension - 36)) + 36
+                    vec[h_sub] += 0.4
 
         # L2 Normalization
         norm = np.linalg.norm(vec)

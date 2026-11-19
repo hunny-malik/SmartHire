@@ -159,8 +159,12 @@ export const MockInterview: React.FC = () => {
       setLatency(parseFloat(elapsedSec.toFixed(2)));
       handleAnswerProcessed(res.data.evaluation);
     } catch (err: any) {
-      // Fallback: If voice endpoint fails, submit live transcript text
-      if (liveTranscript) {
+      const detail = err.response?.data?.detail || '';
+      // If no speech was detected, show a clear message — don't silently fallback
+      if (err.response?.status === 422 || detail.includes('No speech')) {
+        setError(detail || 'No speech detected. Please speak clearly or switch to text input.');
+      } else if (liveTranscript) {
+        // Fallback: If voice endpoint fails for other reasons, submit live transcript text
         try {
           const fallbackRes = await interviewApi.submitAnswer(interviewId, {
             candidate_answer: liveTranscript,

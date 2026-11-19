@@ -63,12 +63,22 @@ async def start_interview(
     cand_skills = profile.skills if profile and profile.skills else ["Python", "Algorithms"]
     projects = profile.projects if profile and profile.projects else []
     
+    # Calculate actual skill gaps for this target role
+    skill_gaps = []
+    if role:
+        cand_skills_lower = {s.lower().strip() for s in cand_skills}
+        for rs in role.role_skills:
+            if rs.skill and rs.skill.name.lower().strip() not in cand_skills_lower:
+                skill_gaps.append(rs.skill.name)
+    if not skill_gaps:
+        skill_gaps = ["System Design", "Distributed Systems", "Performance Tuning"]
+
     # Generate Question 1 dynamically
     q_data = await question_generator.generate_question(
         candidate_name=cand_name,
         target_role=target_role_title,
         skills=cand_skills,
-        skill_gaps=["System Design", "Distributed Systems"],
+        skill_gaps=skill_gaps,
         projects=projects,
         previous_qa=[],
         language=language,
@@ -180,11 +190,22 @@ async def submit_answer(
                     "technical_accuracy": q.answer.technical_accuracy
                 })
 
+        # Calculate dynamic gaps for this specific role
+        skill_gaps = []
+        target_role_obj = db.query(Role).filter(Role.id == interview.role_id).first() if interview.role_id else None
+        if target_role_obj:
+            cand_skills_lower = {s.lower().strip() for s in cand_skills}
+            for rs in target_role_obj.role_skills:
+                if rs.skill and rs.skill.name.lower().strip() not in cand_skills_lower:
+                    skill_gaps.append(rs.skill.name)
+        if not skill_gaps:
+            skill_gaps = ["System Design", "Distributed Systems", "Database Optimization"]
+
         next_q_data = await question_generator.generate_question(
             candidate_name=cand_name,
             target_role=target_role_title,
             skills=cand_skills,
-            skill_gaps=["System Design", "Distributed Systems", "Database Optimization"],
+            skill_gaps=skill_gaps,
             projects=projects,
             previous_qa=all_qa,
             language=interview.language,
@@ -251,6 +272,12 @@ async def submit_voice_answer(
     transcript = stt_res.get("transcript", "").strip()
     if not transcript and live_transcript:
         transcript = live_transcript.strip()
+
+    if not transcript:
+        raise HTTPException(
+            status_code=422,
+            detail="No speech was detected. Please speak clearly into the microphone, or switch to text input."
+        )
 
     latency = round(time.time() - start_time, 2)
 

@@ -21,6 +21,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const timerRef = useRef<any>(null);
+  const liveTranscriptRef = useRef<string>('');
   const recognitionRef = useRef<any>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -41,6 +42,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     setAudioUrl(null);
     setCapturedBlob(null);
     setLiveTranscript('');
+    liveTranscriptRef.current = '';
     audioChunksRef.current = [];
 
     try {
@@ -81,20 +83,46 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         // Language locale for Hindi / Hinglish vs English
         if (language.toLowerCase() === 'hindi') {
           recognition.lang = 'hi-IN';
+        } else if (language.toLowerCase() === 'hinglish') {
+          recognition.lang = 'hi-IN'; // Hinglish works better with hi-IN recognition
         } else {
           recognition.lang = 'en-US';
         }
 
+        let finalTranscript = '';
+
         recognition.onresult = (event: any) => {
-          let fullTranscript = '';
+          let interim = '';
           for (let i = 0; i < event.results.length; ++i) {
-            fullTranscript += event.results[i][0].transcript + ' ';
+            const result = event.results[i];
+            if (result.isFinal) {
+              finalTranscript += result[0].transcript + ' ';
+            } else {
+              interim += result[0].transcript;
+            }
           }
-          setLiveTranscript(fullTranscript.trim());
+          const combined = (finalTranscript + interim).trim();
+          liveTranscriptRef.current = combined;
+          setLiveTranscript(combined);
+        };
+
+        // Auto-restart recognition if it stops unexpectedly while still recording
+        recognition.onend = () => {
+          // Only restart if we're still recording
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            try {
+              recognition.start();
+            } catch (e) {
+              // Already started or other error — ignore
+            }
+          }
         };
 
         recognition.onerror = (e: any) => {
-          console.warn('Speech recognition notice:', e.error);
+          // 'no-speech' and 'aborted' are non-fatal — recognition auto-restarts via onend
+          if (e.error !== 'no-speech' && e.error !== 'aborted') {
+            console.warn('Speech recognition error:', e.error);
+          }
         };
 
         try {
@@ -122,7 +150,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const handleSubmitRecordedAudio = () => {
     if (capturedBlob) {
-      onAudioCaptured(capturedBlob, liveTranscript);
+      const transcriptToSend = liveTranscriptRef.current || liveTranscript;
+      onAudioCaptured(capturedBlob, transcriptToSend);
     }
   };
 
@@ -228,12 +257,22 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
               <audio controls src={audioUrl} className="h-7 w-56 max-w-full" />
             </div>
           )}
-          {liveTranscript && (
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400">Live Transcript:</span>
-              <p className="text-xs text-slate-200 mt-1 italic">"{liveTranscript}"</p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-400">Captured Speech (Editable):</span>
+              <span className="text-[10px] text-slate-500">Edit below if anything was misheard</span>
             </div>
-          )}
+            <textarea
+              value={liveTranscript}
+              onChange={(e) => {
+                setLiveTranscript(e.target.value);
+                liveTranscriptRef.current = e.target.value;
+              }}
+              rows={2}
+              placeholder="Your speech transcript will appear here in real-time. You can also edit it before submitting."
+              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 resize-none"
+            />
+          </div>
         </div>
       )}
     </div>

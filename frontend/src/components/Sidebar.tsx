@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   Mic,
   Award,
+  BarChart3,
   User
 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { path: '/roadmap', label: 'Learning Roadmap', icon: CalendarCheck },
   { path: '/interview', label: 'Mock Interview', icon: Mic, highlight: true },
   { path: '/reports', label: 'Reports & History', icon: Award },
+  { path: '/benchmarks', label: 'ML Benchmarks', icon: BarChart3 },
   { path: '/profile', label: 'Profile Settings', icon: User },
 ];
 

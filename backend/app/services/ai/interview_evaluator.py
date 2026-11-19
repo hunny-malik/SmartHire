@@ -1,5 +1,6 @@
 import json
 import re
+import time
 import httpx
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
@@ -16,6 +17,8 @@ class EvaluationSchema(BaseModel):
     strengths: List[str] = Field(default_factory=list)
     weaknesses: List[str] = Field(default_factory=list)
 
+_QUOTA_EXHAUSTED_UNTIL: float = 0.0
+
 class InterviewEvaluator:
     """
     Evaluates candidate answers across technical accuracy, communication,
@@ -23,6 +26,8 @@ class InterviewEvaluator:
     """
     @property
     def has_llm_key(self) -> bool:
+        if time.time() < _QUOTA_EXHAUSTED_UNTIL:
+            return False
         return bool(settings.OPENAI_API_KEY or settings.GEMINI_API_KEY)
 
     async def evaluate_answer(
@@ -96,16 +101,17 @@ class InterviewEvaluator:
             "i don't know", "i dont know", "dont know", "don't know", "no idea", 
             "not sure", "pata nahi", "mujhe nahi pata", "skip", "pass", "no clue", 
             "i do not know", "can't answer", "cannot answer", "i have no idea", "nahi pata",
-            "no", "nope", "nah", "na", "nothing"
+            "i could not provide an answer"
         ]
         cleaned_ans = re.sub(r'[^a-zA-Z\s]', '', answer_lower).strip()
         is_non_answer = (
             any(cleaned_ans == na for na in non_answer_markers)
             or any(cleaned_ans.startswith(na + " ") or cleaned_ans.endswith(" " + na) for na in [
                 "i don't know", "i dont know", "dont know", "don't know", "no idea", 
-                "not sure", "pata nahi", "mujhe nahi pata", "no clue", "i do not know"
+                "not sure", "pata nahi", "mujhe nahi pata", "no clue", "i do not know",
+                "can't answer", "cannot answer", "i could not provide an answer"
             ])
-            or (word_count <= 4 and any(na in cleaned_ans for na in ["dont know", "no idea", "not sure", "skip", "pass", "pata nahi"]))
+            or (word_count <= 3 and cleaned_ans in ["no", "nope", "nah", "na", "nothing", "skip", "pass"])
         )
 
         if is_non_answer:
@@ -278,7 +284,7 @@ Output strictly valid JSON matching this schema:
         else:
             raise ValueError("No LLM API key configured")
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=4.0) as client:
             headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
             payload = {
                 "model": model,
@@ -293,7 +299,11 @@ Output strictly valid JSON matching this schema:
                 raw = res.json()["choices"][0]["message"]["content"]
                 parsed = json.loads(raw)
                 return EvaluationSchema(**parsed).model_dump()
+            elif res.status_code == 429:
+                global _QUOTA_EXHAUSTED_UNTIL
+                _QUOTA_EXHAUSTED_UNTIL = time.time() + 300.0
+                raise ValueError("LLM API quota exhausted (HTTP 429); falling back to heuristic evaluator")
             else:
-                raise ValueError(f"LLM API returned HTTP {res.status_code}: {res.text}")
+                raise ValueError(f"LLM API returned HTTP {res.status_code}: {res.text[:120]}")
 
 interview_evaluator = InterviewEvaluator()

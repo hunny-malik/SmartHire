@@ -102,8 +102,9 @@ def test_interview_evaluator_hinglish_detection():
     lang2 = interview_evaluator.detect_language(english_text)
     assert lang2 == "English"
 
-def test_question_generator():
-    q_data = question_generator._generate_contextual_question(
+@pytest.mark.anyio
+async def test_question_generator():
+    q_data = await question_generator._generate_contextual_question(
         candidate_name="Aarav",
         target_role="Backend Developer",
         skills=["Python", "FastAPI"],

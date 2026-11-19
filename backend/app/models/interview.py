@@ -19,6 +19,7 @@ class Interview(Base):
 
     # Relationships
     user = relationship("User", back_populates="interviews")
+    role = relationship("Role")
     questions = relationship("InterviewQuestion", back_populates="interview", cascade="all, delete-orphan", order_by="InterviewQuestion.sequence_order")
     report = relationship("InterviewReport", back_populates="interview", uselist=False, cascade="all, delete-orphan")
 

@@ -15,6 +15,16 @@ STANDARDIZED_SKILLS = [
     {"name": "Go", "category": "Programming", "esco_uri": "esco:skill:golang", "prerequisites": ["DSA"], "difficulty_level": "intermediate"},
     {"name": "SQL", "category": "Databases", "esco_uri": "esco:skill:sql-db", "prerequisites": [], "difficulty_level": "beginner"},
     {"name": "HTML/CSS", "category": "Frontend", "esco_uri": "esco:skill:html-css", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Git", "category": "DevOps", "esco_uri": "esco:skill:git-vcs", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Networking", "category": "Architecture", "esco_uri": "esco:skill:networking", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Operating Systems", "category": "Architecture", "esco_uri": "esco:skill:os-sys", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "HTTP Basics", "category": "Architecture", "esco_uri": "esco:skill:http", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Databases", "category": "Databases", "esco_uri": "esco:skill:databases-foundations", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "JSON", "category": "Architecture", "esco_uri": "esco:skill:json-data", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Caching Basics", "category": "Databases", "esco_uri": "esco:skill:caching-basics", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Cloud Architecture", "category": "Cloud", "esco_uri": "esco:skill:cloud-arch", "prerequisites": ["Networking", "Linux"], "difficulty_level": "intermediate"},
+    {"name": "Linear Algebra", "category": "Data Science", "esco_uri": "esco:skill:linear-algebra", "prerequisites": [], "difficulty_level": "beginner"},
+    {"name": "Vector Databases", "category": "Databases", "esco_uri": "esco:skill:vector-db", "prerequisites": ["Databases"], "difficulty_level": "intermediate"},
 
     # Architecture & Fundamentals
     {"name": "OOP", "category": "Architecture", "esco_uri": "esco:skill:oop", "prerequisites": [], "difficulty_level": "beginner"},

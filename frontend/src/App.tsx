@@ -17,6 +17,7 @@ import { LearningRoadmap } from './pages/LearningRoadmap';
 import { MockInterview } from './pages/MockInterview';
 import { InterviewHistory } from './pages/InterviewHistory';
 import { InterviewReportView } from './pages/InterviewReportView';
+import { MLEvaluation } from './pages/MLEvaluation';
 import { Profile } from './pages/Profile';
 
 export function App() {
@@ -43,6 +44,8 @@ export function App() {
               <Route path="/interview" element={<MockInterview />} />
               <Route path="/reports" element={<InterviewHistory />} />
               <Route path="/interview/:id/report" element={<InterviewReportView />} />
+              <Route path="/benchmarks" element={<MLEvaluation />} />
+              <Route path="/evaluation" element={<Navigate to="/benchmarks" replace />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
           </Route>
